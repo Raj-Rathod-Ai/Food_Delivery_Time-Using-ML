@@ -228,12 +228,8 @@ if navigation == "🔮 Predictor Panel":
     with col1:
         st.subheader("Inference Parameters")
         
-        # Order ID & API key simulator fields
-        c1, c2 = st.columns(2)
-        with c1:
-            order_id_input = st.number_input("Order ID", min_value=1, value=522, step=1, help="Numeric tracking reference")
-        with c2:
-            api_key_input = st.text_input("X-API-Key simulator", value=FREE_DEMO_KEY, type="password", help="Client key used to authorize API request")
+        # Order ID input field
+        order_id_input = st.number_input("Order ID", min_value=1, value=522, step=1, help="Numeric tracking reference")
 
         st.divider()
         
@@ -260,102 +256,95 @@ if navigation == "🔮 Predictor Panel":
         st.subheader("Prediction Results")
         
         if predict_click:
-            # Verify Key
-            db = load_keys_db()
-            if not api_key_input:
-                st.error("Authentication Error: API key header is missing.")
-            elif api_key_input not in db or not db[api_key_input].get("active", False):
-                st.error("Authentication Error: Provided API key is invalid or revoked.")
+            # Interactive Loading Animation Sequence
+            with st.spinner("🔄 Preprocessing delivery run features..."):
+                time.sleep(0.4)
+            with st.spinner("🔮 Estimating ETA via Degree-2 Polynomial Model..."):
+                time.sleep(0.5)
+            
+            # 1. Initialize DataFrame
+            processed_df = pd.DataFrame(0.0, index=[0], columns=feature_names)
+            
+            # 2. Cap continuous variable parameters to training distribution ranges to prevent ML extrapolation errors
+            capped_order_id = max(1.0, min(1000.0, float(order_id_input)))
+            capped_distance = max(0.5, min(20.0, float(distance_input)))
+            capped_prep_time = max(5.0, min(60.0, float(prep_time_input)))
+            capped_experience = max(0.0, min(9.0, float(experience_input)))
+
+            processed_df.at[0, "Order_ID"] = capped_order_id
+            processed_df.at[0, "Distance_km"] = capped_distance
+            processed_df.at[0, "Preparation_Time_min"] = capped_prep_time
+            processed_df.at[0, "Courier_Experience_yrs"] = capped_experience
+
+            # 3. Clean textual inputs
+            input_weather = weather_input.strip().title()
+            if input_weather == "Sunny" or "Sunny" in input_weather:
+                input_weather = "Clear"
+            input_traffic = traffic_input.strip().title()
+            input_tod = tod_input.strip().title()
+            input_vehicle = vehicle_input.strip().title()
+
+            # 4. Map Weather
+            if input_weather in WEATHER_CATS:
+                w_idx = WEATHER_CATS.index(input_weather)
+                for col in [f"\tWeather_{w_idx}", f"Weather_{w_idx}"]:
+                    if col in feature_names:
+                        processed_df.at[0, col] = 1.0
+
+            # 5. Map Traffic
+            if input_traffic in TRAFFIC_CATS:
+                t_idx = TRAFFIC_CATS.index(input_traffic)
+                for col in [f"Traffic_Level_{t_idx}"]:
+                    if col in feature_names:
+                        processed_df.at[0, col] = 1.0
+
+            # 6. Map Time of Day
+            if input_tod in TOD_CATS:
+                tod_idx = TOD_CATS.index(input_tod)
+                for col in [f"\rTime_of_Day_{tod_idx}", f"Time_of_Day_{tod_idx}"]:
+                    if col in feature_names:
+                        processed_df.at[0, col] = 1.0
+
+            # 7. Map Vehicle Type
+            if input_vehicle in VEHICLE_CATS:
+                v_idx = VEHICLE_CATS.index(input_vehicle)
+                for col in [f"Vehicle_Type_{v_idx}"]:
+                    if col in feature_names:
+                        processed_df.at[0, col] = 1.0
+
+            # 8. Transform polynomial features
+            X_model_input = poly.transform(processed_df)
+
+            # 9. Predict
+            prediction_array = model.predict(X_model_input)
+            prediction_val = float(prediction_array[0])
+            
+            # Check for NaN/Inf
+            if np.isnan(prediction_val) or np.isinf(prediction_val):
+                prediction_val = 56.73
+
+            # Enforce safety boundaries
+            final_prediction = max(8.0, min(150.0, prediction_val))
+            
+            # Render results in a nice UI card block
+            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+            st.metric("Estimated Delivery Time", f"{final_prediction:.2f} mins")
+            
+            # Classification and Custom Badge
+            if final_prediction < 30.0:
+                st.markdown('<span class="badge badge-express">🚀 Express Run (Fast)</span>', unsafe_allow_html=True)
+            elif final_prediction <= 65.0:
+                st.markdown('<span class="badge badge-standard">🚗 Standard Run (Normal)</span>', unsafe_allow_html=True)
             else:
-                # Interactive Loading Animation Sequence
-                with st.spinner("🔄 Preprocessing delivery run features..."):
-                    time.sleep(0.4)
-                with st.spinner("🔮 Estimating ETA via Degree-2 Polynomial Model..."):
-                    time.sleep(0.5)
-                
-                # 1. Initialize DataFrame
-                processed_df = pd.DataFrame(0.0, index=[0], columns=feature_names)
-                
-                # 2. Cap continuous variable parameters to training distribution ranges to prevent ML extrapolation errors
-                capped_order_id = max(1.0, min(1000.0, float(order_id_input)))
-                capped_distance = max(0.5, min(20.0, float(distance_input)))
-                capped_prep_time = max(5.0, min(60.0, float(prep_time_input)))
-                capped_experience = max(0.0, min(9.0, float(experience_input)))
-
-                processed_df.at[0, "Order_ID"] = capped_order_id
-                processed_df.at[0, "Distance_km"] = capped_distance
-                processed_df.at[0, "Preparation_Time_min"] = capped_prep_time
-                processed_df.at[0, "Courier_Experience_yrs"] = capped_experience
-
-                # 3. Clean textual inputs
-                input_weather = weather_input.strip().title()
-                if input_weather == "Sunny" or "Sunny" in input_weather:
-                    input_weather = "Clear"
-                input_traffic = traffic_input.strip().title()
-                input_tod = tod_input.strip().title()
-                input_vehicle = vehicle_input.strip().title()
-
-                # 4. Map Weather
-                if input_weather in WEATHER_CATS:
-                    w_idx = WEATHER_CATS.index(input_weather)
-                    for col in [f"\tWeather_{w_idx}", f"Weather_{w_idx}"]:
-                        if col in feature_names:
-                            processed_df.at[0, col] = 1.0
-
-                # 5. Map Traffic
-                if input_traffic in TRAFFIC_CATS:
-                    t_idx = TRAFFIC_CATS.index(input_traffic)
-                    for col in [f"Traffic_Level_{t_idx}"]:
-                        if col in feature_names:
-                            processed_df.at[0, col] = 1.0
-
-                # 6. Map Time of Day
-                if input_tod in TOD_CATS:
-                    tod_idx = TOD_CATS.index(input_tod)
-                    for col in [f"\rTime_of_Day_{tod_idx}", f"Time_of_Day_{tod_idx}"]:
-                        if col in feature_names:
-                            processed_df.at[0, col] = 1.0
-
-                # 7. Map Vehicle Type
-                if input_vehicle in VEHICLE_CATS:
-                    v_idx = VEHICLE_CATS.index(input_vehicle)
-                    for col in [f"Vehicle_Type_{v_idx}"]:
-                        if col in feature_names:
-                            processed_df.at[0, col] = 1.0
-
-                # 8. Transform polynomial features
-                X_model_input = poly.transform(processed_df)
-
-                # 9. Predict
-                prediction_array = model.predict(X_model_input)
-                prediction_val = float(prediction_array[0])
-                
-                # Check for NaN/Inf
-                if np.isnan(prediction_val) or np.isinf(prediction_val):
-                    prediction_val = 56.73
-
-                # Enforce safety boundaries
-                final_prediction = max(8.0, min(150.0, prediction_val))
-                
-                # Render results in a nice UI card block
-                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-                st.metric("Estimated Delivery Time", f"{final_prediction:.2f} mins")
-                
-                # Classification and Custom Badge
-                if final_prediction < 30.0:
-                    st.markdown('<span class="badge badge-express">🚀 Express Run (Fast)</span>', unsafe_allow_html=True)
-                elif final_prediction <= 65.0:
-                    st.markdown('<span class="badge badge-standard">🚗 Standard Run (Normal)</span>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<span class="badge badge-delayed">⚠️ Delayed Run (Slow)</span>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                st.info(f"""
-                **Prediction Metadata:**
-                - **Order ID**: #{order_id_input}
-                - **Pipeline Mode**: {'Fallback Predictor' if is_fallback else 'Polynomial Regression (Degree-2)'}
-                - **Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                """)
+                st.markdown('<span class="badge badge-delayed">⚠️ Delayed Run (Slow)</span>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.info(f"""
+            **Prediction Metadata:**
+            - **Order ID**: #{order_id_input}
+            - **Pipeline Mode**: {'Fallback Predictor' if is_fallback else 'Polynomial Regression (Degree-2)'}
+            - **Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            """)
         else:
             st.caption("Adjust inference parameters on the left and click 'Calculate Prediction' to view results.")
 
