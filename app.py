@@ -76,70 +76,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------------
-# API KEY DATABASE LAYER (JSON PERSISTENT FILE)
-# -------------------------------------------------------
-KEYS_FILE = "api_keys.json"
-FREE_DEMO_KEY = "DELIVERY-FREE-DEMO"
-
-def load_keys_db() -> Dict[str, dict]:
-    if not os.path.exists(KEYS_FILE):
-        return init_keys_db()
-    try:
-        with open(KEYS_FILE, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        st.error(f"Error reading keys database: {e}")
-        return {}
-
-def save_keys_db(db_data: dict):
-    try:
-        with open(KEYS_FILE, "w") as f:
-            json.dump(db_data, f, indent=4)
-    except Exception as e:
-        st.error(f"Error saving keys database: {e}")
-
-def init_keys_db() -> Dict[str, dict]:
-    db = {}
-    if os.path.exists(KEYS_FILE):
-        try:
-            with open(KEYS_FILE, "r") as f:
-                db = json.load(f)
-        except Exception as e:
-            db = {}
-
-    # Ensure demo key is seeded
-    if FREE_DEMO_KEY not in db:
-        db[FREE_DEMO_KEY] = {
-            "owner": "Public Demo UI",
-            "created_at": datetime.now().isoformat(),
-            "active": True,
-            "role": "client"
-        }
-
-    # Handle Master Admin Key from environment or defaults
-    env_master_key = os.environ.get("MASTER_API_KEY")
-    if env_master_key:
-        db[env_master_key] = {
-            "owner": "Environment Master Admin",
-            "created_at": datetime.now().isoformat(),
-            "active": True,
-            "role": "admin"
-        }
-    else:
-        # Check if there is already an admin key
-        has_admin = any(details.get("role") == "admin" and details.get("active", False) for details in db.values())
-        if not has_admin:
-            # Seed default master key for local development
-            db["DEV-MASTER-KEY-81"] = {
-                "owner": "Default Master Admin",
-                "created_at": datetime.now().isoformat(),
-                "active": True,
-                "role": "admin"
-            }
-
-    save_keys_db(db)
-    return db
+from db_manager import load_keys_db, save_keys_db, init_keys_db, FREE_DEMO_KEY
 
 # Seed keys cache on startup
 api_keys_db = init_keys_db()

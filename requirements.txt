@@ -1,0 +1,8 @@
+streamlit
+fastapi
+uvicorn
+pydantic
+pandas
+numpy
+scikit-learn
+psycopg2-binary
