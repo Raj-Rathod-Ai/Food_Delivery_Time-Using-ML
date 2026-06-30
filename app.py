@@ -193,11 +193,9 @@ if navigation == "🔮 Predictor Panel":
         st.subheader("Prediction Results")
         
         if predict_click:
-            # Interactive Loading Animation Sequence
-            with st.spinner("🔄 Preprocessing delivery run features..."):
-                time.sleep(0.4)
-            with st.spinner("🔮 Estimating ETA via Degree-2 Polynomial Model..."):
-                time.sleep(0.5)
+            # Fast loading feedback sequence
+            with st.spinner("🔮 Estimating delivery ETA..."):
+                time.sleep(0.15)
             
             # 1. Initialize DataFrame
             processed_df = pd.DataFrame(0.0, index=[0], columns=feature_names)
@@ -304,8 +302,8 @@ elif navigation == "🔑 Get API Key":
             if not owner_name.strip():
                 st.error("Please enter a valid owner name.")
             else:
-                with st.spinner("Generating cryptographically secure token..."):
-                    time.sleep(0.6)
+                with st.spinner("Generating secure token..."):
+                    time.sleep(0.15)
                 
                 db = load_keys_db()
                 
@@ -435,7 +433,7 @@ elif navigation == "🔒 Admin Portal":
                             changes_made = True
                 
                 if changes_made:
-                    time.sleep(0.5)
+                    time.sleep(0.1)
                     st.rerun()
 
 # -------------------------------------------------------
