@@ -631,7 +631,7 @@ Future<void> fetchPrediction() async {{
       print("Predicted ETA: ${{data['predicted_delivery_time_minutes']}} mins");
     }} else if (response.statusCode == 429) {{
       print("Error: 100 daily requests rate limit exceeded.");
-    } else {{
+    }} else {{
       print("Request failed with status: ${{response.statusCode}}");
     }}
   }} catch (e) {{
