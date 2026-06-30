@@ -343,7 +343,10 @@ elif navigation == "🔒 Admin Portal":
     
     if admin_key_input:
         db = load_keys_db()
-        is_admin = admin_key_input in db and db[admin_key_input].get("role") == "admin" and db[admin_key_input].get("active", False)
+        env_master_key = os.environ.get("MASTER_API_KEY")
+        # Direct check against environment variable or database records
+        is_admin = (env_master_key and admin_key_input == env_master_key) or \
+                   (admin_key_input in db and db[admin_key_input].get("role") == "admin" and db[admin_key_input].get("active", False))
         
         if not is_admin:
             st.error("Access Denied: Invalid credentials or insufficient permissions.")

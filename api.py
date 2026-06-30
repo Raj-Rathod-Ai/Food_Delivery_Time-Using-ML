@@ -53,6 +53,11 @@ def verify_api_key(api_key_header: Optional[str] = Security(api_key_header_schem
             status_code=401, 
             detail=f"Authorization header '{API_KEY_NAME}' is missing. Supply a valid API Key to use this pipeline."
         )
+    # Direct matching for Master Admin Key from environment variable
+    env_master_key = os.environ.get("MASTER_API_KEY")
+    if env_master_key and api_key_header == env_master_key:
+        return api_key_header
+        
     if api_key_header not in db or not db[api_key_header].get("active", False):
         raise HTTPException(
             status_code=403, 
