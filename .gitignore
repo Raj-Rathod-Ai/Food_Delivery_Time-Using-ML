@@ -1,0 +1,18 @@
+# Python Cache Files
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# API Database & Environments (Critical for Security)
+api_keys.json
+.env
+.env.production
+.env.local
