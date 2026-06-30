@@ -371,12 +371,21 @@ elif navigation == "🔑 Get API Key":
                     time.sleep(0.6)
                 
                 db = load_keys_db()
-                new_token = "DELIVERY-" + secrets.token_hex(16).upper()
+                
+                # Guarantee API token uniqueness
+                while True:
+                    new_token = "DELIVERY-" + secrets.token_hex(16).upper()
+                    if new_token not in db:
+                        break
+                        
                 db[new_token] = {
                     "owner": owner_name.strip(),
                     "created_at": datetime.now().isoformat(),
                     "active": True,
-                    "role": "client"
+                    "role": "client",
+                    "today_date": datetime.now().strftime("%Y-%m-%d"),
+                    "today_requests": 0,
+                    "daily_limit": 100
                 }
                 save_keys_db(db)
                 
