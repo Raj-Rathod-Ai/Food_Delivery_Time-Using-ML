@@ -443,31 +443,87 @@ elif navigation == "🔒 Admin Portal":
 # -------------------------------------------------------
 elif navigation == "📖 Developer Docs":
     st.header("📖 API Developer Integration Guide")
-    st.markdown("Integrate our AI Food Delivery Predictor directly into your software applications using our API gateway.")
+    st.markdown("Integrate the AI Food Delivery Predictor directly into your software applications using our REST API gateway.")
     
-    st.info("""
-    **Production Note:**
-    To allow your friends to connect their apps using the keys generated on this console, make sure to deploy the FastAPI backend (`api.py`) on a service like **Render** or **Heroku**. 
-    The Streamlit app and FastAPI backend both read from the same `api_keys.json` file.
+    # Dynamic API URL Modifier
+    st.subheader("🔗 API Endpoint Configuration")
+    api_server_url = st.text_input(
+        "API Gateway Base URL", 
+        value="https://your-api-gateway.onrender.com", 
+        help="Change this to your actual deployed Render or Railway API URL to update the code snippets below dynamically."
+    )
+    
+    clean_url = api_server_url.rstrip("/")
+    
+    st.markdown(f"""
+    - **Method**: `POST`
+    - **Endpoint**: `{clean_url}/predict`
+    - **Headers**:
+      - `Content-Type: application/json`
+      - `X-API-Key: <YOUR-CLIENT-API-KEY>`
     """)
     
-    st.subheader("Request Schema")
+    st.divider()
+    
+    # Parameters & Limits
+    st.subheader("📋 Data Schema & Validation Constraints")
+    
+    col_schema_1, col_schema_2 = st.columns(2)
+    
+    with col_schema_1:
+        st.markdown("**Request Body JSON Fields**")
+        st.markdown("""
+        | Parameter | Type | Required | Cap Bounds (Training Distribution) | Description |
+        | :--- | :--- | :--- | :--- | :--- |
+        | `order_id` | Integer | Yes | `[1, 1000]` | Unique tracking reference number |
+        | `distance_km` | Float | Yes | `[0.5, 20.0]` | Travel distance in kilometers |
+        | `preparation_time_min` | Integer | Yes | `[5, 60]` | Store preparation time in minutes |
+        | `courier_experience_yrs` | Float | Yes | `[0.0, 9.0]` | Rider work experience in years |
+        | `weather` | String | Yes | `Clear, Foggy, Rainy, Snowy, Windy` | Weather scenario |
+        | `traffic_level` | String | Yes | `Low, Medium, High` | Traffic density |
+        | `time_of_day` | String | Yes | `Morning, Afternoon, Evening, Night` | Time of delivery run |
+        | `vehicle_type` | String | Yes | `Bike, Scooter, Car` | Transit vehicle type |
+        """)
+        
+    with col_schema_2:
+        st.markdown("**Response Body JSON Fields**")
+        st.markdown("""
+        | Parameter | Type | Description |
+        | :--- | :--- | :--- |
+        | `order_id` | Integer | Echoes back the requested order reference |
+        | `predicted_delivery_time_minutes` | Float | Estimated delivery duration in minutes (bounded `[8.0, 150.0]`) |
+        | `pipeline_mode` | String | Indicator showing if Degree-2 Polynomial ML model or fallback simulator served prediction |
+        | `timestamp` | String | ISO formatted timestamp of the prediction run |
+        """)
+        
+    st.divider()
+    
+    # Rate Limiting & Response codes info
+    st.subheader("🛡️ Key Access & Rate Limits")
     st.markdown("""
-    - **Endpoint**: `POST http://localhost:8000/predict`
-    - **Header**: `X-API-Key: <YOUR-API-KEY>`
-    - **Content-Type**: `application/json`
+    All issued client credentials are capped at a rate limit of **100 requests per day**. If a key exceeds this limit, the gateway will return a **429** response code.
+    
+    | Status Code | Message | Cause |
+    | :--- | :--- | :--- |
+    | `200 OK` | Success | The prediction was computed successfully |
+    | `401 Unauthorized` | `Authorization header 'X-API-Key' is missing` | Header was not supplied in the API call |
+    | `403 Forbidden` | `Provided API key is invalid or has been revoked` | Key does not exist or has been disabled in the Admin Portal |
+    | `429 Too Many Requests` | `Rate Limit Exceeded: This key is capped at 100 requests/day` | Key exceeded the 100 daily quota limits |
+    | `500 Server Error` | `Inference processing failed internally` | Server calculation error |
     """)
     
-    st.subheader("Code Integration Examples")
+    st.divider()
+    
+    st.subheader("💻 Code Integration Examples")
     
     code_tab_1, code_tab_2, code_tab_3, code_tab_4 = st.tabs(["cURL", "Python", "JavaScript", "Flutter (Dart)"])
     
     with code_tab_1:
-        st.code("""
-curl -X POST "http://localhost:8000/predict" \\
+        st.code(f"""
+curl -X POST "{clean_url}/predict" \\
      -H "Content-Type: application/json" \\
      -H "X-API-Key: YOUR-API-KEY-HERE" \\
-     -d '{
+     -d '{{
        "order_id": 522,
        "distance_km": 7.93,
        "preparation_time_min": 12,
@@ -476,19 +532,19 @@ curl -X POST "http://localhost:8000/predict" \\
        "traffic_level": "Low",
        "time_of_day": "Afternoon",
        "vehicle_type": "Scooter"
-     }'
+     }}'
         """, language="bash")
         
     with code_tab_2:
-        st.code("""
+        st.code(f"""
 import requests
 
-url = "http://localhost:8000/predict"
-headers = {
+url = "{clean_url}/predict"
+headers = {{
     "X-API-Key": "YOUR-API-KEY-HERE",
     "Content-Type": "application/json"
-}
-payload = {
+}}
+payload = {{
     "order_id": 522,
     "distance_km": 7.93,
     "preparation_time_min": 12,
@@ -497,19 +553,24 @@ payload = {
     "traffic_level": "Low",
     "time_of_day": "Afternoon",
     "vehicle_type": "Scooter"
-}
+}}
 
 response = requests.post(url, json=payload, headers=headers)
-data = response.json()
-print(f"Predicted ETA: {data['predicted_delivery_time_minutes']} minutes")
+if response.status_code == 200:
+    data = response.json()
+    print(f"Predicted ETA: {{data['predicted_delivery_time_minutes']}} minutes")
+elif response.status_code == 429:
+    print("Error: Daily API limit of 100 requests exceeded.")
+else:
+    print(f"Error: {{response.status_code}} - {{response.text}}")
         """, language="python")
         
     with code_tab_3:
-        st.code("""
-const url = 'http://localhost:8000/predict';
+        st.code(f"""
+const url = '{clean_url}/predict';
 const apiKey = 'YOUR-API-KEY-HERE';
 
-const payload = {
+const payload = {{
   order_id: 522,
   distance_km: 7.93,
   preparation_time_min: 12,
@@ -518,36 +579,41 @@ const payload = {
   traffic_level: 'Low',
   time_of_day: 'Afternoon',
   vehicle_type: 'Scooter'
-};
+}};
 
-fetch(url, {
+fetch(url, {{
   method: 'POST',
-  headers: {
+  headers: {{
     'X-API-Key': apiKey,
     'Content-Type': 'application/json'
-  },
+  }},
   body: JSON.stringify(payload)
-})
-.then(res => res.json())
-.then(data => {
-  console.log(`Predicted ETA: ${data.predicted_delivery_time_minutes} minutes`);
-})
-.catch(err => console.error(err));
+}})
+.then(res => {{
+  if (res.status === 429) {{
+    throw new Error("Daily rate limit of 100 requests exceeded.");
+  }}
+  return res.json();
+}})
+.then(data => {{
+  console.log(`Predicted ETA: ${{data.predicted_delivery_time_minutes}} minutes`);
+}})
+.catch(err => console.error("API Error:", err.message));
         """, language="javascript")
         
     with code_tab_4:
-        st.code("""
+        st.code(f"""
 import 'dart:convert';
 import 'http/http.dart' as http;
 
-Future<void> fetchPrediction() async {
-  final url = Uri.parse('http://localhost:8000/predict');
-  final headers = {
+Future<void> fetchPrediction() async {{
+  final url = Uri.parse('{clean_url}/predict');
+  final headers = {{
     'X-API-Key': 'YOUR-API-KEY-HERE',
     'Content-Type': 'application/json',
-  };
+  }};
   
-  final body = jsonEncode({
+  final body = jsonEncode({{
     'order_id': 522,
     'distance_km': 7.93,
     'preparation_time_min': 12,
@@ -556,18 +622,20 @@ Future<void> fetchPrediction() async {
     'traffic_level': 'Low',
     'time_of_day': 'Afternoon',
     'vehicle_type': 'Scooter'
-  });
+  }});
 
-  try {
+  try {{
     final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200) {{
       final data = jsonDecode(response.body);
-      print("Predicted ETA: ${data['predicted_delivery_time_minutes']} mins");
-    } else {
-      print("Request failed with status: ${response.statusCode}");
-    }
-  } catch (e) {
+      print("Predicted ETA: ${{data['predicted_delivery_time_minutes']}} mins");
+    }} else if (response.statusCode == 429) {{
+      print("Error: 100 daily requests rate limit exceeded.");
+    } else {{
+      print("Request failed with status: ${{response.statusCode}}");
+    }}
+  }} catch (e) {{
     print("Error connecting to API: $e");
-  }
-}
+  }}
+}}
         """, language="dart")
