@@ -357,50 +357,85 @@ elif navigation == "🔒 Admin Portal":
             total_keys = len(db)
             active_keys = sum(1 for details in db.values() if details.get("active", False))
             
-            c1, c2 = st.columns(2)
+            # Calculate total requests today across all client keys
+            total_requests_today = sum(details.get("today_requests", 0) for details in db.values() if details.get("role") != "admin")
+            
+            c1, c2, c3 = st.columns(3)
             with c1:
-                st.metric("Total API Credentials", total_keys)
+                st.metric("Total Keys Created", total_keys)
             with c2:
                 st.metric("Active Connections", active_keys)
+            with c3:
+                st.metric("API Requests Sent Today", total_requests_today)
                 
-            st.subheader("Key Log Table")
+            st.subheader("Interactive Key Management Console")
+            st.caption("Toggle the checkbox in the **Active (Enabled)** column to instantly enable or disable an API key.")
             
             # Build clean DataFrame for display
             display_data = []
-            active_revoke_options = {}
             
             for key, details in db.items():
-                # Mask key
+                role = details.get("role", "client").upper()
                 masked_key = f"{key[:14]}..."
+                
+                # Format request count
+                today_req = details.get("today_requests", 0)
+                limit_req = details.get("daily_limit", 100)
+                usage_str = "Admin Exempt" if role == "ADMIN" else f"{today_req} / {limit_req}"
+                
                 display_data.append({
                     "Owner": details["owner"],
-                    "Access Role": details["role"].upper(),
-                    "API Authorization Key": masked_key,
-                    "Created Date": details["created_at"][:10],
-                    "Active Status": "🟢 Active" if details["active"] else "🔴 Revoked"
+                    "Role": role,
+                    "API Key (Masked)": masked_key,
+                    "Created Date": details["created_at"][:10] if "created_at" in details else "N/A",
+                    "Usage Today": usage_str,
+                    "Active (Enabled)": bool(details.get("active", True)),
+                    "_actual_key": key # Hidden key mapping for updates
                 })
-                # Collect active keys for revocation box (excluding the current admin key)
-                if details["active"] and details["role"] != "admin":
-                    active_revoke_options[details["owner"]] = key
             
             df = pd.DataFrame(display_data)
-            st.dataframe(df, use_container_width=True)
             
-            # Revocation Section
-            st.subheader("⚠️ Revoke Access Credentials")
-            if not active_revoke_options:
-                st.info("No active client keys available to revoke.")
+            if df.empty:
+                st.info("No keys available in the database.")
             else:
-                revoke_owner_select = st.selectbox("Select Key Owner to Revoke", list(active_revoke_options.keys()))
-                revoke_key_target = active_revoke_options[revoke_owner_select]
+                # Display interactive data editor
+                edited_df = st.data_editor(
+                    df,
+                    column_config={
+                        "Active (Enabled)": st.column_config.CheckboxColumn(
+                            "Active (Enabled)",
+                            help="Toggle to activate or deactivate key access",
+                            default=True
+                        ),
+                        "Owner": "Key Owner",
+                        "Role": "Role",
+                        "API Key (Masked)": "API Key",
+                        "Created Date": "Created Date",
+                        "Usage Today": "Usage Today"
+                    },
+                    disabled=["Owner", "Role", "API Key (Masked)", "Created Date", "Usage Today"],
+                    use_container_width=True,
+                    key="keys_editor"
+                )
                 
-                revoke_click = st.button("Revoke Access Permanently", type="secondary")
+                # Check for changes and update database
+                changes_made = False
+                for idx, row in edited_df.iterrows():
+                    orig_row = df.loc[idx]
+                    if row["Active (Enabled)"] != orig_row["Active (Enabled)"]:
+                        target_key = row["_actual_key"]
+                        # Safety lock: don't allow disabling your active admin key session to avoid lockout
+                        if target_key == admin_key_input:
+                            st.warning("Safety Lock: You cannot disable your own active admin key session.")
+                        else:
+                            db = load_keys_db()
+                            db[target_key]["active"] = bool(row["Active (Enabled)"])
+                            save_keys_db(db)
+                            st.toast(f"Status updated for '{row['Owner']}' to {'🟢 Enabled' if row['Active (Enabled)'] else '🔴 Disabled'}!")
+                            changes_made = True
                 
-                if revoke_click:
-                    db = load_keys_db()
-                    db[revoke_key_target]["active"] = False
-                    save_keys_db(db)
-                    st.toast(f"Successfully revoked access for '{revoke_owner_select}'!")
+                if changes_made:
+                    time.sleep(0.5)
                     st.rerun()
 
 # -------------------------------------------------------
